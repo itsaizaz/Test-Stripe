@@ -1,90 +1,133 @@
-# Stripe Payout Dashboard
+# PayGlobal — Vercel Deployment Guide
 
-A full-stack payout dashboard built with Node.js/Express + Stripe API.
+## Prerequisites
+- Node.js 18+ installed
+- A [Vercel account](https://vercel.com) (free)
+- Your Stripe live keys
+- Resend API key + verified domain
 
 ---
 
-## 🚀 Setup (5 minutes)
+## Step-by-step deploy
 
-### 1. Install dependencies
+### 1. Install Vercel CLI
+```bash
+npm install -g vercel
+```
+
+### 2. Login to Vercel
+```bash
+vercel login
+```
+
+### 3. Install dependencies
 ```bash
 npm install
 ```
 
-### 2. Add your Stripe keys
-
-Open `.env` and replace the placeholder:
-```
-STRIPE_SECRET_KEY=sk_test_YOUR_SECRET_KEY_HERE
-PORT=3001
-```
-
-Open `public/index.html` and find this line near the bottom:
-```js
-const stripe = Stripe('pk_test_YOUR_PUBLISHABLE_KEY_HERE');
-```
-Replace with your **publishable** key (starts with `pk_test_`).
-
-> Get both keys from: https://dashboard.stripe.com/apikeys
-
-### 3. Start the server
+### 4. Create Vercel KV (Redis database)
+This replaces the local JSON files — stores recipients and transfers permanently.
 ```bash
-# Development (auto-restart on changes)
-npm run dev
+vercel kv create payglobal-db
+```
+When prompted, link to your project. Then pull the credentials:
+```bash
+vercel env pull .env.local
+```
+This auto-fills `KV_REST_API_URL` and `KV_REST_API_TOKEN` in your `.env.local`.
 
-# Or production
-npm start
+### 5. Add your environment variables
+Edit `.env.local` and fill in:
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+RESEND_API_KEY=re_...
+EMAIL_FROM="PayGlobal Payouts <noreply@yourdomain.com>"
+OWNER_EMAIL=you@yourdomain.com
+PLATFORM_NAME=PayGlobal Platform
 ```
 
-### 4. Open the dashboard
+### 6. First deploy
+```bash
+vercel
 ```
-http://localhost:3001
+Copy the preview URL it gives you (e.g. `https://payglobal-xyz.vercel.app`).
+
+### 7. Set APP_URL
+Add the URL from step 6 to your `.env.local`:
+```
+APP_URL=https://payglobal-xyz.vercel.app
+```
+
+### 8. Push all env vars to Vercel
+```bash
+vercel env add STRIPE_SECRET_KEY
+vercel env add STRIPE_PUBLISHABLE_KEY
+vercel env add RESEND_API_KEY
+vercel env add EMAIL_FROM
+vercel env add OWNER_EMAIL
+vercel env add PLATFORM_NAME
+vercel env add APP_URL
+```
+For each command, paste the value when prompted and select "Production, Preview, Development".
+
+### 9. Deploy to production
+```bash
+vercel --prod
+```
+
+Your app is live at `https://payglobal-xyz.vercel.app` 🚀
+
+---
+
+## Updating after deploy
+
+Any code change:
+```bash
+vercel --prod
+```
+
+To update an env variable:
+```bash
+vercel env rm VARIABLE_NAME
+vercel env add VARIABLE_NAME
+vercel --prod
 ```
 
 ---
 
-## 📁 Project Structure
+## Project structure
 
 ```
-stripe-payouts/
-├── server.js          ← Express API (Stripe secret key lives here)
+payglobal-vercel/
+├── api/
+│   └── index.js          ← All API routes (Express, runs as Vercel serverless)
+├── emails/
+│   ├── emailService.js   ← Nodemailer / Resend sender
+│   └── templates.js      ← HTML email templates
 ├── public/
-│   └── index.html     ← Frontend dashboard
-├── .env               ← Your Stripe secret key (never commit this!)
-└── package.json
+│   └── index.html        ← Frontend dashboard (served as static)
+├── vercel.json           ← Routes /api/* → serverless, /* → static
+├── package.json
+└── .env.local            ← Local dev env vars (never commit this)
 ```
 
 ---
 
-## 🔌 API Endpoints
+## Local development
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/balance` | Retrieve available & pending balance |
-| GET | `/api/payouts` | List payouts (optional: `?status=paid&limit=50`) |
-| POST | `/api/payouts` | Initiate a payout `{ amount, destination, description }` |
-| GET | `/api/payouts/:id` | Get single payout details |
-| GET | `/api/bank-accounts` | List all bank accounts |
-| POST | `/api/bank-accounts` | Add bank account `{ token }` from Stripe.js |
-| PATCH | `/api/bank-accounts/:id/default` | Set as default payout account |
-| DELETE | `/api/bank-accounts/:id` | Remove a bank account |
+```bash
+vercel dev
+```
+This runs everything locally with the same routing as production.
+Open http://localhost:3000
 
 ---
 
-## ⚠️ Important Notes
+## Notes
 
-- **Secret key** (`sk_test_...`) stays in `.env` — the server uses it
-- **Publishable key** (`pk_test_...`) goes in the frontend HTML — safe to expose
-- Bank account numbers are **never sent to your server** — Stripe.js tokenizes them in the browser
-- Add `.env` to `.gitignore` before pushing to GitHub
-
----
-
-## 🧪 Test with Stripe test data
-
-Use these test routing/account numbers:
-- Routing: `110000000`
-- Account: `000123456789` (success)
-- Account: `000111111116` (will fail with account_closed error)
-
-More test numbers: https://stripe.com/docs/connect/testing#payouts
+- **KV storage**: Recipients and transfers are stored in Vercel KV (Redis).
+  Free tier: 30,000 requests/month — more than enough.
+- **HTTPS**: Vercel always serves over HTTPS — the Stripe live mode redirect issue is automatically solved.
+- **Serverless limits**: Each API request has a 10s timeout on the free Hobby plan.
+  Vercel Pro extends this to 60s.

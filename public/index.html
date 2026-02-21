@@ -395,19 +395,6 @@ tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
     <div class="modal-hd"><div class="modal-title">Add Recipient</div><button class="modal-close" onclick="cm('m-recip')">✕</button></div>
     <div class="ferr" id="recip-err"></div>
 
-    <!-- Unsupported country warning -->
-    <div class="unsupported-banner" id="unsupported-banner">
-      <div class="unsupported-banner-title">❌ Country not supported by Stripe</div>
-      <div class="unsupported-banner-body" id="unsupported-body">
-        Stripe Connect cannot send payouts to this country. Recipients must have a bank account in a supported country.
-        <div class="unsupported-banner-alts">
-          <span class="alt-chip">💡 Use Wise Business API</span>
-          <span class="alt-chip">💡 Use Payoneer</span>
-          <span class="alt-chip">💡 Try a supported country</span>
-        </div>
-      </div>
-    </div>
-
     <div class="frow">
       <div class="fg">
         <label class="fl">Full Name *</label>
@@ -475,8 +462,11 @@ tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-hd"><div class="modal-title">Transfer Details</div><button class="modal-close" onclick="cm('m-detail')">✕</button></div>
     <div id="detail-content"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px">
-      <button class="btn btn-sm" style="background:rgba(91,138,240,.1);color:var(--accent);border:1px solid rgba(91,138,240,.2)" id="detail-invoice-btn" onclick="">📄 Send Invoice</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" style="background:rgba(91,138,240,.1);color:var(--accent);border:1px solid rgba(91,138,240,.2)" id="detail-invoice-btn" onclick="">📄 Invoice</button>
+        <button class="btn btn-sm btn-green" id="detail-markpaid-btn" style="display:none" onclick="">✓ Mark as Paid</button>
+      </div>
       <button class="btn btn-ghost btn-sm" onclick="cm('m-detail')">Close</button>
     </div>
   </div>
@@ -608,8 +598,10 @@ tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
 
 
 <script>
-const API = 'http://localhost:3001/api';
-const stripe = Stripe('__STRIPE_PK__');
+const API = "/api";
+let stripe = null;
+// Stripe PK is fetched from /api/config to keep it out of static files
+fetch('/api/config').then(r=>r.json()).then(d=>{ if(d.pk) stripe=Stripe(d.pk); });
 
 // ── State ────────────────────────────────────────────────────
 const S = { balance:null, transfers:[], recipients:[], mode:'test', supported:{countries:[],currencies:{},bankFormats:{}} };
@@ -832,7 +824,6 @@ function showView(name,btn){
 let selectedCountry=null;
 function searchCountry(q){
   const drop=document.getElementById('country-dropdown');
-  const supported=new Set(S.supported.countries||[]);
   const filtered=ALL_COUNTRIES.filter(c=>c.n.toLowerCase().includes(q.toLowerCase())||c.c.toLowerCase()===q.toLowerCase()).slice(0,12);
   drop.style.display=filtered.length?'block':'none';
   drop.innerHTML=filtered.map(c=>{
@@ -851,34 +842,17 @@ function selectCountry(code,name,supported){
   document.getElementById('rf-country-code').value=code;
   document.getElementById('country-dropdown').style.display='none';
 
-  const unsupBanner=document.getElementById('unsupported-banner');
   const bankSection=document.getElementById('bank-fields-section');
   const note=document.getElementById('recip-note');
   const addBtn=document.getElementById('btn-recip');
 
-  if(!supported){
-    unsupBanner.style.display='block';
-    bankSection.style.display='none';
-    note.style.display='none';
-    addBtn.disabled=true;
-    document.getElementById('unsupported-body').innerHTML=
-      `<strong>${name} (${code})</strong> is not supported by Stripe Connect. Recipients must have a bank account in a Stripe-supported country.<br>
-       <div class="unsupported-banner-alts">
-         <span class="alt-chip">💡 Wise Business API</span>
-         <span class="alt-chip">💡 Payoneer</span>
-         <span class="alt-chip">💡 View Coverage Map</span>
-       </div>`;
-  } else {
-    unsupBanner.style.display='none';
-    bankSection.style.display='block';
-    addBtn.disabled=false;
-    renderDynamicBankFields(code);
-    renderCurrencySelect(code);
-    note.style.display='block';
-    note.innerHTML=S.mode==='live'
-      ? `🔒 <strong>Live mode:</strong> A Stripe Express account is created. Recipient gets an onboarding email to link their ${name} bank.`
-      : `🟡 <strong>Test mode:</strong> Recipient stored locally. Live mode creates a real Stripe Express account.`;
-  }
+  // All countries accepted — bank details stored locally, no Stripe onboarding
+  bankSection.style.display='block';
+  addBtn.disabled=false;
+  renderDynamicBankFields(code);
+  renderCurrencySelect(code);
+  note.style.display='block';
+  note.innerHTML=`🔒 Bank details saved securely. You handle the actual transfer via your bank or Wise — no Stripe onboarding required.`;
 }
 
 function renderDynamicBankFields(code){
@@ -958,7 +932,6 @@ function openAddRecipientModal(){
   clearErr('recip-err');
   ['rf-name','rf-email','rf-bank','rf-holder','rf-swift','rf-country-search'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('rf-country-code').value='';
-  document.getElementById('unsupported-banner').style.display='none';
   document.getElementById('bank-fields-section').style.display='none';
   document.getElementById('recip-note').style.display='none';
   document.getElementById('btn-recip').disabled=true;
@@ -1025,7 +998,6 @@ async function submitRecipient(){
     S.recipients.push(r);
     cm('m-recip'); renderRecipients(); populateRecipSel();
     toast(`Recipient "${name}" added!`,'ok');
-    if(r.onboarding_url){ toast('Opening Stripe onboarding for recipient…','info'); setTimeout(()=>window.open(r.onboarding_url,'_blank'),1200); }
   }catch(e){
     if(e.message.includes('not supported')||e.message.includes('unsupported_country')){
       document.getElementById('unsupported-banner').style.display='block';
@@ -1068,15 +1040,40 @@ function openDetail(id){
       <div class="detail-item"><div class="detail-item-lbl">Recipient</div><div class="detail-item-val">${name}</div></div>
       <div class="detail-item"><div class="detail-item-lbl">Amount</div><div class="detail-item-val td-mono" style="${t.status==='failed'?'color:var(--red)':''}">${fmt(t.amount,t.currency)}</div></div>
       <div class="detail-item"><div class="detail-item-lbl">Country</div><div class="detail-item-val">${flagEmoji(country)} ${country}</div></div>
-      <div class="detail-item"><div class="detail-item-lbl">Bank ···${t.last4||r?.last4||'—'}</div><div class="detail-item-val">${t.bank_name||r?.bank_name||'—'}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Bank</div><div class="detail-item-val">${t.bank_name||r?.bank_name||'—'} <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">···${t.last4||r?.last4||'—'}</span></div></div>
+      ${(t.iban||r?.iban)?`<div class="detail-item" style="grid-column:1/-1"><div class="detail-item-lbl">IBAN</div><div class="detail-item-val td-mono" style="font-size:12px;word-break:break-all">${t.iban||r?.iban}</div></div>`:''}
+      ${(t.account_number||r?.account_number)?`<div class="detail-item"><div class="detail-item-lbl">Account No.</div><div class="detail-item-val td-mono">${t.account_number||r?.account_number}</div></div>`:''}
+      ${(t.routing_number||r?.routing_number)?`<div class="detail-item"><div class="detail-item-lbl">Routing No.</div><div class="detail-item-val td-mono">${t.routing_number||r?.routing_number}</div></div>`:''}
+      ${(t.sort_code||r?.sort_code)?`<div class="detail-item"><div class="detail-item-lbl">Sort Code</div><div class="detail-item-val td-mono">${t.sort_code||r?.sort_code}</div></div>`:''}
+      ${(t.swift||r?.swift)?`<div class="detail-item"><div class="detail-item-lbl">SWIFT/BIC</div><div class="detail-item-val td-mono">${t.swift||r?.swift}</div></div>`:''}
       <div class="detail-item"><div class="detail-item-lbl">Initiated</div><div class="detail-item-val">${fmtDate(t.created)}</div></div>
-      <div class="detail-item"><div class="detail-item-lbl">Est. Arrival</div><div class="detail-item-val">${fmtDate(t.arrival_date)}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">${t.status==='paid'?'Paid On':'Est. Arrival'}</div><div class="detail-item-val">${fmtDate(t.paid_at||t.arrival_date)}</div></div>
     </div>
+    ${t.status==='pending'?`<div style="margin-top:12px;padding:12px 14px;background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:10px;font-size:12px;color:#fde68a;line-height:1.6">⏳ <strong>Action needed:</strong> Send <strong>${fmt(t.amount,t.currency)}</strong> to ${name}'s bank account, then click <strong>Mark as Paid</strong> above to confirm.</div>`:''}
     ${t.status==='failed'?`<div style="margin-top:12px;padding:10px 14px;background:rgba(240,71,71,.07);border:1px solid rgba(240,71,71,.2);border-radius:10px;font-size:12px;color:var(--red)">⚠ Transfer failed. Verify recipient bank details and retry.</div>`:''}
   `;
-  om('m-detail');
-  // Wire the invoice button to this specific transfer
+  // Wire buttons
   document.getElementById('detail-invoice-btn').onclick = () => { cm('m-detail'); openInvoiceModal(id); };
+  const markBtn = document.getElementById('detail-markpaid-btn');
+  if(t.status === 'pending' || t.status === 'in_transit') {
+    markBtn.style.display = '';
+    markBtn.onclick = () => markTransferPaid(t.id);
+  } else {
+    markBtn.style.display = 'none';
+  }
+  om('m-detail');
+}
+
+// ── Mark Transfer Paid ───────────────────────────────────────
+async function markTransferPaid(id) {
+  try {
+    const updated = await api(`/transfers/${id}/mark-paid`, 'PATCH', { note: 'Marked paid via dashboard' });
+    const idx = S.transfers.findIndex(t => t.id === id);
+    if (idx !== -1) S.transfers[idx] = { ...S.transfers[idx], ...updated };
+    cm('m-detail');
+    renderTransfers();
+    toast('Transfer marked as paid ✓', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
 }
 
 // ── Toast ─────────────────────────────────────────────────────
