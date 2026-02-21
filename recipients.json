@@ -1,0 +1,18 @@
+[
+  {
+    "id": "acct_test_1771542515721",
+    "name": "Test",
+    "email": "test@company.com",
+    "bank_name": "Emirates NBD",
+    "iban": "AE070331234567890123456",
+    "swift": "EBILAEAD",
+    "last4": "3456",
+    "type": "contractor",
+    "currency": "aed",
+    "country": "AE",
+    "status": "active",
+    "created": 1771542515,
+    "total_paid": 20000,
+    "_local": true
+  }
+]

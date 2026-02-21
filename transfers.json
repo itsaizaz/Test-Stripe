@@ -1,0 +1,18 @@
+[
+  {
+    "id": "tr_test_1771542529878",
+    "object": "transfer",
+    "amount": 20000,
+    "currency": "aed",
+    "destination": "acct_test_1771542515721",
+    "recipient_name": "Test",
+    "recipient_email": "test@company.com",
+    "bank_name": "Emirates NBD",
+    "last4": "3456",
+    "description": "Vendor payment",
+    "status": "paid",
+    "created": 1771542529,
+    "arrival_date": 1771974529,
+    "_local": true
+  }
+]

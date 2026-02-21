@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Global Payout Dashboard</title>
+<script src="https://js.stripe.com/v3/"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060810;--s1:#0b0e1a;--s2:#0f1422;--s3:#141929;
+  --b1:#1c2438;--b2:#243050;--b3:#2d3a5e;
+  --text:#edf0f7;--muted:#6b7a99;--dim:#3d4d6b;
+  --accent:#5b8af0;--a2:#8b5cf6;
+  --green:#0ec97f;--amber:#f5a623;--red:#f04747;--teal:#06b6d4;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --r:10px;--shadow:0 12px 40px rgba(0,0,0,.5);
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--s1)}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
+.shell{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sidebar{width:220px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;padding:28px 0;position:sticky;top:0;height:100vh}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:0 20px 28px;border-bottom:1px solid var(--b1);margin-bottom:20px}
+.logo-mark{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--a2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:0 3px 10px rgba(91,138,240,.3)}
+.logo-text{font-size:15px;font-weight:800;letter-spacing:-.3px}
+.logo-sub{font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.5px}
+.nav-section{padding:0 12px;margin-bottom:4px}
+.nav-label{font-size:10px;font-weight:700;color:var(--dim);letter-spacing:1.2px;text-transform:uppercase;padding:0 8px;margin-bottom:6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:var(--font)}
+.nav-item:hover{background:var(--s2);color:var(--text)}
+.nav-item.active{background:rgba(91,138,240,.1);color:var(--accent);border:1px solid rgba(91,138,240,.15)}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-badge{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px}
+.sidebar-bottom{margin-top:auto;padding:16px 20px;border-top:1px solid var(--b1)}
+.mode-pill{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:600}
+.mode-pill.test{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);color:#fbbf24}
+.mode-pill.live{background:rgba(14,201,127,.08);border:1px solid rgba(14,201,127,.2);color:#6ee7b7}
+.mode-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* Main */
+.main{flex:1;overflow-x:hidden}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:22px 36px;border-bottom:1px solid var(--b1);background:var(--s1);position:sticky;top:0;z-index:10}
+.page-title{font-size:20px;font-weight:800;letter-spacing:-.4px}
+.page-sub{font-size:12px;color:var(--muted);margin-top:1px}
+.topbar-right{display:flex;gap:10px;align-items:center}
+
+/* Coverage badge in topbar */
+.coverage-badge{display:flex;align-items:center;gap:6px;background:rgba(14,201,127,.07);border:1px solid rgba(14,201,127,.18);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--green)}
+
+.content{padding:32px 36px;max-width:1240px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:var(--r);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;border:none;transition:all .17s;outline:none}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 3px 12px rgba(91,138,240,.3)}
+.btn-primary:hover{background:#4a7ae8;transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--b1)}
+.btn-ghost:hover{border-color:var(--b2);color:var(--text)}
+.btn-danger{background:transparent;color:var(--red);border:1px solid rgba(240,71,71,.2)}
+.btn-danger:hover{background:rgba(240,71,71,.06)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+.btn-green{background:rgba(14,201,127,.1);color:var(--green);border:1px solid rgba(14,201,127,.2)}
+.btn-green:hover{background:rgba(14,201,127,.18)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.stat{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:20px;transition:border-color .2s,transform .2s;animation:up .4s ease both}
+.stat:hover{border-color:var(--b2);transform:translateY(-2px)}
+.stat-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.stat-label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.8px;text-transform:uppercase}
+.stat-icon{font-size:18px;opacity:.6}
+.stat-val{font-size:24px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;margin-bottom:4px}
+.stat-note{font-size:11px;color:var(--muted)}
+.stat-line{height:2px;border-radius:2px;margin-top:14px}
+
+/* Section */
+.section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.section-title{font-size:15px;font-weight:700}
+.section-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* Table */
+.table-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;overflow:hidden;margin-bottom:28px;animation:up .4s .1s ease both}
+table{width:100%;border-collapse:collapse}
+thead th{padding:12px 18px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;border-bottom:1px solid var(--b1);white-space:nowrap}
+thead th.r{text-align:right}
+tbody tr{border-bottom:1px solid rgba(28,36,56,.6);transition:background .1s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(91,138,240,.03)}
+tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
+.td-mono{font-family:var(--mono);font-size:12px}
+.td-acc{color:var(--accent)}
+.td-m{color:var(--muted)}
+.td-r{text-align:right;font-family:var(--mono);font-weight:600}
+.empty-row td,.load-row td{padding:48px;text-align:center;color:var(--muted)}
+
+/* Recipient cell */
+.rcell{display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.rname{font-weight:600;font-size:13px}
+.remail{font-size:11px;color:var(--muted)}
+
+/* Flag + country */
+.flag-country{display:flex;align-items:center;gap:6px;font-size:13px}
+.flag{font-size:18px;line-height:1}
+
+/* Chips */
+.type-chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid transparent}
+.type-vendor    {color:#a78bfa;background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.2)}
+.type-customer  {color:var(--teal);background:rgba(6,182,212,.08);border-color:rgba(6,182,212,.2)}
+.type-contractor{color:var(--amber);background:rgba(245,166,35,.08);border-color:rgba(245,166,35,.2)}
+
+/* Badge */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.bdot{width:5px;height:5px;border-radius:50%}
+.b-paid   {color:var(--green);background:rgba(14,201,127,.07);border-color:rgba(14,201,127,.2)}
+.b-transit{color:var(--amber);background:rgba(245,166,35,.07);border-color:rgba(245,166,35,.2)}
+.b-pending{color:var(--muted);background:rgba(107,122,153,.07);border-color:rgba(107,122,153,.2)}
+.b-failed {color:var(--red);background:rgba(240,71,71,.07);border-color:rgba(240,71,71,.2)}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:200;animation:fi .15s ease}
+.modal{background:var(--s2);border:1px solid var(--b2);border-radius:18px;padding:32px;width:100%;max-width:520px;box-shadow:var(--shadow);animation:su .2s ease;max-height:92vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.modal-title{font-size:17px;font-weight:800}
+.modal-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.modal-close:hover{background:var(--s3);color:var(--text)}
+
+/* Form */
+.fg{margin-bottom:14px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.fl{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px;display:block;margin-bottom:6px;text-transform:uppercase}
+.fi,.fs{width:100%;background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:11px 14px;color:var(--text);font-size:14px;font-family:var(--font);outline:none;transition:border-color .15s}
+.fi:focus,.fs:focus{border-color:var(--accent)}
+.fi::placeholder{color:var(--muted)}
+.fs option{background:var(--s2)}
+.fi.mono{font-family:var(--mono)}
+.fnote{background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.7}
+.fnote strong{color:var(--text)} .fnote code{color:var(--accent);font-family:var(--mono)}
+.ffoot{display:flex;gap:10px;margin-top:20px}
+.ffoot .btn{flex:1;justify-content:center;padding:12px}
+.ffoot .btn-primary{flex:2}
+.ferr{background:rgba(240,71,71,.08);border:1px solid rgba(240,71,71,.2);border-radius:var(--r);padding:11px 14px;color:#fca5a5;font-size:13px;margin-bottom:14px;display:none;line-height:1.5}
+.fwarn{background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:11px 14px;color:#fde68a;font-size:12px;margin-bottom:14px;display:none;line-height:1.6}
+
+/* Country search */
+.country-search-wrap{position:relative}
+.country-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);z-index:50;max-height:220px;overflow-y:auto;margin-top:4px;box-shadow:var(--shadow);display:none}
+.country-opt{padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;transition:background .1s}
+.country-opt:hover,.country-opt.focused{background:var(--s3)}
+.country-opt.unsupported{opacity:.45;cursor:not-allowed}
+.country-opt.unsupported::after{content:'Not supported';margin-left:auto;font-size:10px;color:var(--red);font-weight:600}
+.country-opt.supported::after{content:'✓';margin-left:auto;font-size:11px;color:var(--green);font-weight:700}
+
+/* Unsupported country banner */
+.unsupported-banner{background:rgba(240,71,71,.07);border:1px solid rgba(240,71,71,.2);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:none}
+.unsupported-banner-title{font-size:13px;font-weight:700;color:#fca5a5;margin-bottom:4px}
+.unsupported-banner-body{font-size:12px;color:var(--muted);line-height:1.6}
+.unsupported-banner-alts{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.alt-chip{background:var(--s3);border:1px solid var(--b2);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:var(--muted)}
+
+/* Dynamic bank fields */
+.bank-fields-hint{background:rgba(91,138,240,.06);border:1px solid rgba(91,138,240,.15);border-radius:var(--r);padding:10px 14px;font-size:12px;color:#93c5fd;margin-bottom:14px;display:none}
+
+/* Recipient preview */
+.recip-preview{background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:none}
+
+/* Coverage map section */
+.coverage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:12px}
+.country-card{background:var(--s2);border:1px solid var(--b1);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;transition:border-color .15s}
+.country-card:hover{border-color:var(--b2)}
+.country-card-name{font-size:12px;font-weight:600}
+.country-card-cur{font-size:10px;color:var(--muted);font-family:var(--mono)}
+
+/* Tracker */
+.tracker{display:flex;padding:20px 10px}
+.tstep{display:flex;flex-direction:column;align-items:center;flex:1;position:relative}
+.tstep:not(:last-child)::after{content:'';position:absolute;top:13px;left:50%;width:100%;height:2px;background:var(--b1)}
+.tstep.done:not(:last-child)::after{background:var(--green)}
+.tstep.active:not(:last-child)::after{background:linear-gradient(90deg,var(--green),var(--b1))}
+.tdot{width:26px;height:26px;border-radius:50%;border:2px solid var(--b2);background:var(--s2);z-index:1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.tstep.done .tdot{background:var(--green);border-color:var(--green);color:#fff}
+.tstep.active .tdot{border-color:var(--amber);color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.15)}
+.tlabel{font-size:10px;color:var(--muted);margin-top:7px;font-weight:600;text-align:center}
+.tstep.done .tlabel{color:var(--green)}
+.tstep.active .tlabel{color:var(--amber)}
+
+/* Detail grid */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.detail-item{background:var(--s3);border:1px solid var(--b1);border-radius:10px;padding:12px 14px}
+.detail-item-lbl{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.7px;text-transform:uppercase;margin-bottom:4px}
+.detail-item-val{font-size:13px;font-weight:500}
+
+/* Toast */
+#toasts{position:fixed;top:20px;right:20px;z-index:300;display:flex;flex-direction:column;gap:8px}
+.toast{padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid;box-shadow:var(--shadow);animation:ti .3s ease both;min-width:240px;display:flex;align-items:center;gap:9px}
+.toast.ok  {background:#0a1f14;border-color:rgba(14,201,127,.25);color:#86efac}
+.toast.err {background:#1f0a0a;border-color:rgba(240,71,71,.25);color:#fca5a5}
+.toast.info{background:#0a0f1f;border-color:rgba(91,138,240,.25);color:#93c5fd}
+.toast-out{animation:to .3s ease forwards}
+
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+@keyframes su{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ti{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
+@keyframes to{to{opacity:0;transform:translateX(22px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.sk{background:linear-gradient(90deg,var(--s2) 25%,var(--b1) 50%,var(--s2) 75%);background-size:200% 100%;animation:sh 1.3s infinite;border-radius:6px;display:inline-block}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+@media(max-width:768px){
+  .sidebar{display:none}.stats-row{grid-template-columns:1fr 1fr}
+  .content{padding:20px}.frow,.frow3{grid-template-columns:1fr}
+  .coverage-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}
+}
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="shell">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">🌍</div>
+    <div><div class="logo-text">PayGlobal</div><div class="logo-sub">Stripe Connect</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Payments</div>
+    <button class="nav-item active" onclick="showView('transfers',this)"><span class="nav-icon">⚡</span>Transfers<span class="nav-badge" id="nav-count">0</span></button>
+    <button class="nav-item" onclick="showView('recipients',this)"><span class="nav-icon">👥</span>Recipients</button>
+  </div>
+  <div class="nav-section" style="margin-top:10px">
+    <div class="nav-label">Info</div>
+    <button class="nav-item" onclick="showView('coverage',this)"><span class="nav-icon">🗺️</span>Coverage</button>
+    <button class="nav-item" onclick="showView('balance',this)"><span class="nav-icon">💰</span>Balance</button>
+    <button class="nav-item" onclick="om('m-emailtest')"><span class="nav-icon">✉️</span>Test Emails</button>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="mode-pill test" id="mode-pill">
+      <span class="mode-dot" id="mode-dot" style="background:var(--amber)"></span>
+      <span id="mode-label">Test Mode</span>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="page-title">Transfers</div>
+      <div class="page-sub" id="page-sub">Send money globally via Stripe Connect</div>
+    </div>
+    <div class="topbar-right">
+      <div class="coverage-badge" id="coverage-badge" title="Stripe Connect supported countries">🌍 <span id="coverage-count">—</span> countries</div>
+      <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻</button>
+      <button class="btn btn-primary" id="topbar-cta" onclick="openSendModal()">+ Send Money</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- TRANSFERS VIEW -->
+    <div id="view-transfers">
+      <div class="stats-row">
+        <div class="stat" style="animation-delay:0s">
+          <div class="stat-top"><div class="stat-label">Available</div><div class="stat-icon">💳</div></div>
+          <div class="stat-val" id="s-avail"><span class="sk" style="width:90px;height:24px"> </span></div>
+          <div class="stat-note">Stripe balance</div>
+          <div class="stat-line" style="background:linear-gradient(90deg,var(--accent),transparent)"></div>
+        </div>
+        <div class="stat" style="animation-delay:.05s">
+          <div class="stat-top"><div class="stat-label">Total Sent</div><div class="stat-icon">🚀</div></div>
+          <div class="stat-val" id="s-total"><span class="sk" style="width:80px;height:24px"> </span></div>
+          <div class="stat-note" id="s-count">0 transfers</div>
+          <div class="stat-line" style="background:linear-gradient(90deg,var(--green),transparent)"></div>
+        </div>
+        <div class="stat" style="animation-delay:.1s">
+          <div class="stat-top"><div class="stat-label">Recipients</div><div class="stat-icon">👥</div></div>
+          <div class="stat-val" id="s-recip">—</div>
+          <div class="stat-note">Active payees</div>
+          <div class="stat-line" style="background:linear-gradient(90deg,var(--amber),transparent)"></div>
+        </div>
+        <div class="stat" style="animation-delay:.15s">
+          <div class="stat-top"><div class="stat-label">Countries</div><div class="stat-icon">🌍</div></div>
+          <div class="stat-val" id="s-countries">—</div>
+          <div class="stat-note">Paid to</div>
+          <div class="stat-line" style="background:linear-gradient(90deg,var(--teal),transparent)"></div>
+        </div>
+      </div>
+      <div class="section-head">
+        <div><div class="section-title">Recent Transfers</div><div class="section-sub">Click a row for details</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-green btn-sm" onclick="openAddRecipientModal()">+ Add Recipient</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th>Recipient</th><th>Country</th><th>Bank</th>
+            <th>Description</th><th>Date</th><th>Status</th><th class="r">Amount</th><th></th>
+          </tr></thead>
+          <tbody id="transfers-tbody"><tr class="load-row"><td colspan="7">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RECIPIENTS VIEW -->
+    <div id="view-recipients" style="display:none">
+      <div class="section-head">
+        <div><div class="section-title">Recipients</div><div class="section-sub">Vendors, customers & contractors you can pay</div></div>
+        <button class="btn btn-primary" onclick="openAddRecipientModal()">+ Add Recipient</button>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th>Name / Email</th><th>Type</th><th>Country</th>
+            <th>Bank Account</th><th>Currency</th><th>Total Paid</th><th class="r">Actions</th>
+          </tr></thead>
+          <tbody id="recipients-tbody"><tr class="load-row"><td colspan="7">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COVERAGE VIEW -->
+    <div id="view-coverage" style="display:none">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Stripe Connect Coverage</div>
+          <div class="section-sub">Countries where recipients can receive payouts</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input class="fi" id="coverage-search" placeholder="Search country…" style="width:180px;padding:7px 12px;font-size:13px" oninput="filterCoverage(this.value)"/>
+        </div>
+      </div>
+      <div class="fnote" style="margin-bottom:20px">
+        ✅ Recipients must have a bank account in one of these <strong id="total-countries">—</strong> countries.<br>
+        ❌ Countries not listed <strong>cannot receive Stripe payouts</strong> — the UI will show a clear error if you try.<br>
+        <span style="opacity:.6;font-size:11px">UAE, Saudi Arabia, most of Africa, Pakistan, Bangladesh etc. are not supported. Use Wise or Payoneer for those.</span>
+      </div>
+      <div class="coverage-grid" id="coverage-grid"></div>
+    </div>
+
+    <!-- BALANCE VIEW -->
+    <div id="view-balance" style="display:none">
+      <div class="section-head"><div><div class="section-title">Account Balance</div></div></div>
+      <div id="balance-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:600px"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+
+<!-- SEND MONEY MODAL -->
+<div class="overlay" id="m-send" style="display:none" onclick="oc(event,'m-send')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd"><div class="modal-title">Send Money</div><button class="modal-close" onclick="cm('m-send')">✕</button></div>
+    <div class="ferr" id="send-err"></div>
+    <div class="fg">
+      <label class="fl">Recipient *</label>
+      <select id="sf-recip" class="fs"><option value="">Select recipient…</option></select>
+    </div>
+    <div id="sf-preview" class="recip-preview"></div>
+    <div class="frow">
+      <div class="fg">
+        <label class="fl">Amount *</label>
+        <input id="sf-amount" class="fi" type="number" step="0.01" min="0.5" placeholder="0.00"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Currency *</label>
+        <select id="sf-cur" class="fs"><option value="usd">USD</option></select>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Description / Reference</label>
+      <input id="sf-desc" class="fi" placeholder="Invoice #1042, Salary Nov, Commission…"/>
+    </div>
+    <div class="fnote">Available: <strong id="sf-avail">—</strong><br><span style="opacity:.5;font-size:11px">0.25% Stripe Connect fee applies on live transfers. Settlement in T+2 to T+5 depending on country.</span></div>
+    <div class="ffoot">
+      <button class="btn btn-ghost" onclick="cm('m-send')">Cancel</button>
+      <button class="btn btn-primary" id="btn-send" onclick="submitSend()">Send Money →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ADD RECIPIENT MODAL -->
+<div class="overlay" id="m-recip" style="display:none" onclick="oc(event,'m-recip')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd"><div class="modal-title">Add Recipient</div><button class="modal-close" onclick="cm('m-recip')">✕</button></div>
+    <div class="ferr" id="recip-err"></div>
+
+    <!-- Unsupported country warning -->
+    <div class="unsupported-banner" id="unsupported-banner">
+      <div class="unsupported-banner-title">❌ Country not supported by Stripe</div>
+      <div class="unsupported-banner-body" id="unsupported-body">
+        Stripe Connect cannot send payouts to this country. Recipients must have a bank account in a supported country.
+        <div class="unsupported-banner-alts">
+          <span class="alt-chip">💡 Use Wise Business API</span>
+          <span class="alt-chip">💡 Use Payoneer</span>
+          <span class="alt-chip">💡 Try a supported country</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="frow">
+      <div class="fg">
+        <label class="fl">Full Name *</label>
+        <input id="rf-name" class="fi" placeholder="Full legal name"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Type *</label>
+        <select id="rf-type" class="fs">
+          <option value="vendor">Vendor / Supplier</option>
+          <option value="customer">Customer Refund</option>
+          <option value="contractor">Contractor</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Email *</label>
+      <input id="rf-email" class="fi" type="email" placeholder="name@company.com"/>
+    </div>
+
+    <!-- Country search -->
+    <div class="fg">
+      <label class="fl">Recipient's Country *</label>
+      <div class="country-search-wrap">
+        <input id="rf-country-search" class="fi" placeholder="Search country (e.g. United States, Germany…)" autocomplete="off" oninput="searchCountry(this.value)" onfocus="openCountryDrop()" onblur="setTimeout(closeCountryDrop,200)"/>
+        <input id="rf-country-code" type="hidden"/>
+        <div class="country-dropdown" id="country-dropdown"></div>
+      </div>
+    </div>
+
+    <!-- Dynamic bank fields (shown after country selected) -->
+    <div id="bank-fields-section" style="display:none">
+      <div class="bank-fields-hint" id="bank-fields-hint"></div>
+      <div class="fg">
+        <label class="fl">Bank Name</label>
+        <input id="rf-bank" class="fi" placeholder="Bank name"/>
+      </div>
+      <div id="rf-dynamic-fields"></div>
+      <div class="fg">
+        <label class="fl">Account Holder Name *</label>
+        <input id="rf-holder" class="fi" placeholder="Full name on bank account"/>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="fl">SWIFT / BIC</label>
+          <input id="rf-swift" class="fi mono" placeholder="BOFAUS3N" style="text-transform:uppercase"/>
+        </div>
+        <div class="fg">
+          <label class="fl">Payout Currency *</label>
+          <select id="rf-cur" class="fs"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="fnote" id="recip-note" style="display:none"></div>
+    <div class="ffoot">
+      <button class="btn btn-ghost" onclick="cm('m-recip')">Cancel</button>
+      <button class="btn btn-primary" id="btn-recip" onclick="submitRecipient()" disabled>Add Recipient →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TRANSFER DETAIL MODAL -->
+<div class="overlay" id="m-detail" style="display:none" onclick="oc(event,'m-detail')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-hd"><div class="modal-title">Transfer Details</div><button class="modal-close" onclick="cm('m-detail')">✕</button></div>
+    <div id="detail-content"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px">
+      <button class="btn btn-sm" style="background:rgba(91,138,240,.1);color:var(--accent);border:1px solid rgba(91,138,240,.2)" id="detail-invoice-btn" onclick="">📄 Send Invoice</button>
+      <button class="btn btn-ghost btn-sm" onclick="cm('m-detail')">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- INVOICE MODAL -->
+<div class="overlay" id="m-invoice" style="display:none" onclick="oc(event,'m-invoice')">
+  <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">Send Invoice</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Email a professional invoice to the recipient</div>
+      </div>
+      <button class="modal-close" onclick="cm('m-invoice')">✕</button>
+    </div>
+    <div class="ferr" id="inv-err"></div>
+
+    <!-- Transfer summary -->
+    <div id="inv-summary" style="background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px;margin-bottom:18px"></div>
+
+    <!-- Send to -->
+    <div class="fg">
+      <label class="fl">Send Invoice To *</label>
+      <input id="inv-to" class="fi" type="email" placeholder="recipient@email.com"/>
+    </div>
+
+    <!-- Invoice number + currency -->
+    <div class="frow">
+      <div class="fg">
+        <label class="fl">Invoice Number</label>
+        <input id="inv-number" class="fi mono" placeholder="INV-2025-001"/>
+      </div>
+      <div class="fg">
+        <label class="fl">Currency</label>
+        <select id="inv-cur" class="fs">
+          <option value="usd">USD</option><option value="gbp">GBP</option>
+          <option value="eur">EUR</option><option value="aud">AUD</option>
+          <option value="aed">AED</option><option value="inr">INR</option>
+          <option value="sgd">SGD</option><option value="cad">CAD</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Sender info -->
+    <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;margin-top:4px">YOUR DETAILS (Sender)</div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Company / Name</label><input id="inv-sname" class="fi" placeholder="Your Company Name"/></div>
+      <div class="fg"><label class="fl">Tax ID / VAT</label><input id="inv-stax" class="fi mono" placeholder="TRN-123456"/></div>
+    </div>
+    <div class="fg"><label class="fl">Address</label><input id="inv-saddr" class="fi" placeholder="Dubai, UAE"/></div>
+
+    <!-- Line items -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;margin-top:4px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase">LINE ITEMS</div>
+      <button class="btn btn-ghost btn-sm" onclick="addInvoiceItem()" style="font-size:11px;padding:4px 10px">+ Add Row</button>
+    </div>
+    <div id="inv-items"></div>
+
+    <!-- Tax + notes -->
+    <div class="frow" style="margin-top:4px">
+      <div class="fg"><label class="fl">Tax Rate %</label><input id="inv-tax" class="fi" type="number" min="0" max="100" value="0" placeholder="0"/></div>
+      <div class="fg"><label class="fl">Notes</label><input id="inv-notes" class="fi" placeholder="Payment terms, references…"/></div>
+    </div>
+
+    <!-- Total preview -->
+    <div id="inv-total-preview" style="background:linear-gradient(135deg,rgba(91,138,240,.08),rgba(139,92,246,.08));border:1px solid rgba(91,138,240,.2);border-radius:var(--r);padding:14px 18px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;color:var(--muted);font-weight:600">Invoice Total</span>
+      <span id="inv-total-val" style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--accent)">$0.00</span>
+    </div>
+
+    <div class="ffoot">
+      <button class="btn btn-ghost" onclick="cm('m-invoice')">Cancel</button>
+      <button class="btn btn-primary" id="btn-inv" onclick="submitInvoice()">📄 Send Invoice Email →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EMAIL TEST PANEL (shown via Settings tab) -->
+<div class="overlay" id="m-emailtest" style="display:none" onclick="oc(event,'m-emailtest')">
+  <div class="modal" style="max-width:440px" onclick="event.stopPropagation()">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">Test Email Notifications</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Send sample emails to verify your setup</div>
+      </div>
+      <button class="modal-close" onclick="cm('m-emailtest')">✕</button>
+    </div>
+
+    <div style="background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:#fde68a;margin-bottom:20px;line-height:1.6">
+      ⚙️ Configure <code style="font-family:var(--mono);color:var(--accent)">EMAIL_USER</code> and <code style="font-family:var(--mono);color:var(--accent)">EMAIL_PASS</code> in your <strong>.env</strong> file first.<br/>
+      During development, set <code style="font-family:var(--mono);color:var(--accent)">EMAIL_PROVIDER=ethereal</code> — emails are captured at a preview URL logged in your terminal (no real email sent).
+    </div>
+
+    <div class="fg">
+      <label class="fl">Send Test To</label>
+      <input id="test-email-to" class="fi" type="email" placeholder="your@email.com"/>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <div style="background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600">⚡ Payment Initiated</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Sent to you when a transfer is created</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="sendTestEmail('initiated')">Send Test</button>
+      </div>
+      <div style="background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600">✅ Payment Received</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Sent to recipient when funds are sent</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="sendTestEmail('received')">Send Test</button>
+      </div>
+      <div style="background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:600">📄 Invoice Email</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Professional invoice with line items</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="sendTestEmail('invoice')">Send Test</button>
+      </div>
+    </div>
+
+    <div id="test-email-result" style="display:none;background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;font-size:12px;line-height:1.7"></div>
+    <div style="text-align:right;margin-top:16px"><button class="btn btn-ghost btn-sm" onclick="cm('m-emailtest')">Close</button></div>
+  </div>
+</div>
+
+
+<script>
+const API = 'http://localhost:3001/api';
+const stripe = Stripe('__STRIPE_PK__');
+
+// ── State ────────────────────────────────────────────────────
+const S = { balance:null, transfers:[], recipients:[], mode:'test', supported:{countries:[],currencies:{},bankFormats:{}} };
+
+// ── All world countries for dropdown ────────────────────────
+const ALL_COUNTRIES = [
+  {c:'AF',n:'Afghanistan'},{c:'AL',n:'Albania'},{c:'DZ',n:'Algeria'},{c:'AR',n:'Argentina'},
+  {c:'AU',n:'Australia'},{c:'AT',n:'Austria'},{c:'BE',n:'Belgium'},{c:'BR',n:'Brazil'},
+  {c:'BG',n:'Bulgaria'},{c:'CA',n:'Canada'},{c:'CN',n:'China'},{c:'HR',n:'Croatia'},
+  {c:'CY',n:'Cyprus'},{c:'CZ',n:'Czech Republic'},{c:'DK',n:'Denmark'},{c:'EG',n:'Egypt'},
+  {c:'EE',n:'Estonia'},{c:'ET',n:'Ethiopia'},{c:'FI',n:'Finland'},{c:'FR',n:'France'},
+  {c:'DE',n:'Germany'},{c:'GH',n:'Ghana'},{c:'GI',n:'Gibraltar'},{c:'GR',n:'Greece'},
+  {c:'HK',n:'Hong Kong'},{c:'HU',n:'Hungary'},{c:'IN',n:'India'},{c:'ID',n:'Indonesia'},
+  {c:'IR',n:'Iran'},{c:'IE',n:'Ireland'},{c:'IL',n:'Israel'},{c:'IT',n:'Italy'},
+  {c:'JP',n:'Japan'},{c:'KE',n:'Kenya'},{c:'LV',n:'Latvia'},{c:'LI',n:'Liechtenstein'},
+  {c:'LT',n:'Lithuania'},{c:'LU',n:'Luxembourg'},{c:'MY',n:'Malaysia'},{c:'MT',n:'Malta'},
+  {c:'MX',n:'Mexico'},{c:'MA',n:'Morocco'},{c:'NL',n:'Netherlands'},{c:'NZ',n:'New Zealand'},
+  {c:'NG',n:'Nigeria'},{c:'NO',n:'Norway'},{c:'PK',n:'Pakistan'},{c:'PH',n:'Philippines'},
+  {c:'PL',n:'Poland'},{c:'PT',n:'Portugal'},{c:'RO',n:'Romania'},{c:'RU',n:'Russia'},
+  {c:'SA',n:'Saudi Arabia'},{c:'SG',n:'Singapore'},{c:'SK',n:'Slovakia'},{c:'SI',n:'Slovenia'},
+  {c:'ZA',n:'South Africa'},{c:'ES',n:'Spain'},{c:'SE',n:'Sweden'},{c:'CH',n:'Switzerland'},
+  {c:'TH',n:'Thailand'},{c:'TT',n:'Trinidad & Tobago'},{c:'TR',n:'Turkey'},{c:'AE',n:'UAE'},
+  {c:'GB',n:'United Kingdom'},{c:'US',n:'United States'},{c:'UY',n:'Uruguay'},
+  {c:'VN',n:'Vietnam'},{c:'BD',n:'Bangladesh'},{c:'KR',n:'South Korea'},
+];
+
+const CURRENCY_NAMES = {
+  usd:'US Dollar',gbp:'British Pound',eur:'Euro',aud:'Australian Dollar',cad:'Canadian Dollar',
+  jpy:'Japanese Yen',sgd:'Singapore Dollar',hkd:'Hong Kong Dollar',inr:'Indian Rupee',
+  mxn:'Mexican Peso',brl:'Brazilian Real',zar:'South African Rand',ngn:'Nigerian Naira',
+  ghs:'Ghanaian Cedi',kes:'Kenyan Shilling',chf:'Swiss Franc',sek:'Swedish Krona',
+  nok:'Norwegian Krone',dkk:'Danish Krone',pln:'Polish Zloty',huf:'Hungarian Forint',
+  czk:'Czech Koruna',bgn:'Bulgarian Lev',ron:'Romanian Leu',myr:'Malaysian Ringgit',
+  nzd:'New Zealand Dollar',thb:'Thai Baht',ttd:'T&T Dollar',uyu:'Uruguayan Peso',
+};
+
+const flagEmoji = c => c ? String.fromCodePoint(...[...c.toUpperCase()].map(ch=>0x1F1E6-65+ch.charCodeAt(0))) : '🌐';
+
+// ── Helpers ──────────────────────────────────────────────────
+const fmt = (cents, cur='usd') =>
+  new Intl.NumberFormat('en-US',{style:'currency',currency:cur.toUpperCase(),minimumFractionDigits:2}).format(cents/100);
+const fmtDate = ts =>
+  new Date(ts*1000).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
+
+const AVATAR_COLS = ['#5b8af0','#8b5cf6','#0ec97f','#f5a623','#06b6d4','#ec4899','#f59e0b'];
+const avatar = name => {
+  const i = (name||'?').charCodeAt(0) % AVATAR_COLS.length;
+  return `<div class="avatar" style="background:${AVATAR_COLS[i]}22;color:${AVATAR_COLS[i]}">${(name||'?')[0].toUpperCase()}</div>`;
+};
+const bmatch = {paid:'b-paid',in_transit:'b-transit',pending:'b-pending',failed:'b-failed'};
+const bdot   = {paid:'var(--green)',in_transit:'var(--amber)',pending:'var(--muted)',failed:'var(--red)'};
+const badge = s => `<span class="badge ${bmatch[s]||'b-pending'}"><span class="bdot" style="background:${bdot[s]||'var(--muted)'}"></span>${s==='in_transit'?'In Transit':s?.charAt(0).toUpperCase()+s?.slice(1)||'—'}</span>`;
+const typeChip = t => `<span class="type-chip type-${t||'vendor'}">${t||'vendor'}</span>`;
+
+async function api(path,method='GET',body=null){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(body) opts.body=JSON.stringify(body);
+  const res=await fetch(API+path,opts);
+  const data=await res.json();
+  if(!res.ok) throw new Error(data.error||`Error ${res.status}`);
+  return data;
+}
+
+// ── Init ─────────────────────────────────────────────────────
+async function init(){
+  await checkHealth();
+  const [sup] = await Promise.allSettled([
+    api('/supported').then(d=>{ S.supported=d; renderCoverageCount(); renderCoverageGrid(); }),
+    loadBalance(), loadTransfers(), loadRecipients(),
+  ]);
+}
+
+async function checkHealth(){
+  try {
+    const h = await api('/health');
+    S.mode = h.mode;
+    const pill=document.getElementById('mode-pill'), dot=document.getElementById('mode-dot'), lbl=document.getElementById('mode-label');
+    if(h.mode==='live'){ pill.className='mode-pill live'; dot.style.background='var(--green)'; lbl.textContent='Live Mode'; }
+    else { pill.className='mode-pill test'; dot.style.background='var(--amber)'; lbl.textContent='Test Mode'; }
+  } catch(e){ toast('Cannot connect to server on port 3001','err'); }
+}
+
+async function refreshAll(){ await Promise.allSettled([loadBalance(),loadTransfers(),loadRecipients()]); toast('Refreshed','info'); }
+
+// ── Load ─────────────────────────────────────────────────────
+async function loadBalance(){
+  try{ S.balance=await api('/balance'); renderStats(); renderBalanceView(); }
+  catch(e){ document.getElementById('s-avail').textContent='Error'; }
+}
+async function loadTransfers(){
+  try{
+    const r=await api('/transfers'); S.transfers=r.data||[];
+    renderStats(); renderTransfers();
+    document.getElementById('nav-count').textContent=S.transfers.length;
+  }catch(e){
+    document.getElementById('transfers-tbody').innerHTML=`<tr class="empty-row"><td colspan="7">⚠ ${e.message}</td></tr>`;
+  }
+}
+async function loadRecipients(){
+  try{ const r=await api('/recipients'); S.recipients=r.data||[]; renderStats(); renderRecipients(); populateRecipSel(); }
+  catch(e){ document.getElementById('recipients-tbody').innerHTML=`<tr class="load-row"><td colspan="7">⚠ ${e.message}</td></tr>`; }
+}
+
+// ── Render ────────────────────────────────────────────────────
+function renderStats(){
+  const cur=S.balance?.available?.[0]?.currency||'usd';
+  const avail=S.balance?.available?.[0]?.amount??0;
+  const total=S.transfers.reduce((s,t)=>s+t.amount,0);
+  const countries=new Set(S.recipients.map(r=>r.country).filter(Boolean));
+  document.getElementById('s-avail').textContent=fmt(avail,cur);
+  document.getElementById('s-total').textContent=fmt(total,cur);
+  document.getElementById('s-count').textContent=`${S.transfers.length} transfer${S.transfers.length!==1?'s':''}`;
+  document.getElementById('s-recip').textContent=S.recipients.length;
+  document.getElementById('s-countries').textContent=countries.size||0;
+  document.getElementById('sf-avail').textContent=fmt(avail,cur);
+}
+
+function renderTransfers(){
+  const tbody=document.getElementById('transfers-tbody');
+  if(!S.transfers.length){ tbody.innerHTML=`<tr class="empty-row"><td colspan="7">No transfers yet. Click "Send Money" to start.</td></tr>`; return; }
+  tbody.innerHTML=S.transfers.map(t=>{
+    const r=S.recipients.find(x=>x.id===t.destination);
+    const name=t.recipient_name||r?.name||t.destination||'—';
+    const country=t.country||r?.country||'';
+    const bank=t.bank_name||r?.bank_name||'—';
+    const last4=t.last4||r?.last4||'—';
+    return `<tr onclick="openDetail('${t.id}')">
+      <td><div class="rcell">${avatar(name)}<div><div class="rname">${name}</div><div class="remail">${t.recipient_email||r?.email||''}</div></div></div></td>
+      <td><div class="flag-country"><span class="flag">${flagEmoji(country)}</span>${country}</div></td>
+      <td class="td-m"><div>${bank}</div><div class="td-mono" style="font-size:11px;margin-top:2px">···${last4}</div></td>
+      <td class="td-m">${t.description||'—'}</td>
+      <td class="td-m">${fmtDate(t.created)}</td>
+      <td>${badge(t.status||'paid')}</td>
+      <td class="td-r" style="${t.status==='failed'?'color:var(--red)':''}">${fmt(t.amount,t.currency)}</td>
+      <td><button class="btn btn-sm" style="background:rgba(91,138,240,.1);color:var(--accent);border:1px solid rgba(91,138,240,.2);white-space:nowrap" onclick="event.stopPropagation();openInvoiceModal('${t.id}')">📄 Invoice</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderRecipients(){
+  const tbody=document.getElementById('recipients-tbody');
+  if(!S.recipients.length){ tbody.innerHTML=`<tr class="empty-row"><td colspan="7">No recipients. Click "Add Recipient" to start.</td></tr>`; return; }
+  tbody.innerHTML=S.recipients.map(r=>`
+    <tr>
+      <td><div class="rcell">${avatar(r.name)}<div><div class="rname">${r.name}</div><div class="remail">${r.email}</div></div></div></td>
+      <td>${typeChip(r.type)}</td>
+      <td><div class="flag-country"><span class="flag">${flagEmoji(r.country)}</span>${r.country}</div></td>
+      <td class="td-m td-mono" style="font-size:12px">${r.bank_name||'—'} ···${r.last4||'—'}</td>
+      <td class="td-mono" style="font-size:12px">${(r.currency||'').toUpperCase()}</td>
+      <td class="td-r td-mono">${fmt(r.total_paid||0,r.currency||'usd')}</td>
+      <td class="td-r"><div style="display:flex;justify-content:flex-end;gap:6px">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();quickSend('${r.id}')">Pay</button>
+        <button class="btn btn-sm btn-danger"  onclick="event.stopPropagation();deleteRecipient('${r.id}')">✕</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function renderCoverageCount(){
+  const n=S.supported.countries?.length||0;
+  document.getElementById('coverage-count').textContent=n;
+  document.getElementById('total-countries').textContent=n;
+}
+
+function renderCoverageGrid(filter=''){
+  const grid=document.getElementById('coverage-grid');
+  if(!grid) return;
+  const countries=S.supported.countries||[];
+  const items=ALL_COUNTRIES.filter(c=>countries.includes(c.c))
+    .filter(c=>!filter||c.n.toLowerCase().includes(filter.toLowerCase())||c.c.toLowerCase().includes(filter.toLowerCase()));
+  grid.innerHTML=items.map(c=>{
+    const curs=(S.supported.currencies[c.c]||[]).map(x=>x.toUpperCase()).join(', ');
+    return `<div class="country-card"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:18px">${flagEmoji(c.c)}</span><div class="country-card-name">${c.n}</div></div><div class="country-card-cur">${curs||'—'}</div></div>`;
+  }).join('');
+  if(!items.length) grid.innerHTML=`<div style="color:var(--muted);padding:20px;grid-column:1/-1">No matching supported countries.</div>`;
+}
+
+function filterCoverage(v){ renderCoverageGrid(v); }
+
+function renderBalanceView(){
+  const cards=document.getElementById('balance-cards');
+  const avail=S.balance?.available??[];
+  const pend =S.balance?.pending??[];
+  const mk=(label,entries,color)=>entries.map(e=>`
+    <div class="stat"><div class="stat-top"><div class="stat-label">${label}</div></div>
+    <div class="stat-val">${fmt(e.amount,e.currency)}</div>
+    <div class="stat-note">${e.currency.toUpperCase()}</div>
+    <div class="stat-line" style="background:linear-gradient(90deg,${color},transparent)"></div></div>`).join('');
+  cards.innerHTML=mk('Available',avail,'var(--accent)')+mk('Pending',pend,'var(--amber)');
+}
+
+function populateRecipSel(){
+  const sel=document.getElementById('sf-recip');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Select recipient…</option>'+
+    S.recipients.map(r=>`<option value="${r.id}">${flagEmoji(r.country)} ${r.name} — ${r.bank_name||'—'} ···${r.last4}</option>`).join('');
+  if(cur) sel.value=cur;
+}
+
+// ── Views ─────────────────────────────────────────────────────
+const VIEWS={
+  transfers:{title:'Transfers',sub:'Send money globally via Stripe Connect',cta:'+ Send Money',fn:()=>openSendModal()},
+  recipients:{title:'Recipients',sub:'People you can pay via bank transfer',cta:'+ Add Recipient',fn:()=>openAddRecipientModal()},
+  coverage:{title:'Coverage Map',sub:`Countries where Stripe Connect supports payouts`,cta:null},
+  balance:{title:'Balance',sub:'Your Stripe account balance',cta:null},
+};
+function showView(name,btn){
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['transfers','recipients','coverage','balance'].forEach(v=>
+    document.getElementById(`view-${v}`).style.display=v===name?'':'none');
+  const v=VIEWS[name];
+  document.getElementById('page-title').textContent=v.title;
+  document.getElementById('page-sub').textContent=v.sub;
+  const cta=document.getElementById('topbar-cta');
+  if(v.cta){ cta.textContent=v.cta; cta.style.display=''; cta.onclick=v.fn; }
+  else cta.style.display='none';
+}
+
+// ── Country Search ────────────────────────────────────────────
+let selectedCountry=null;
+function searchCountry(q){
+  const drop=document.getElementById('country-dropdown');
+  const supported=new Set(S.supported.countries||[]);
+  const filtered=ALL_COUNTRIES.filter(c=>c.n.toLowerCase().includes(q.toLowerCase())||c.c.toLowerCase()===q.toLowerCase()).slice(0,12);
+  drop.style.display=filtered.length?'block':'none';
+  drop.innerHTML=filtered.map(c=>{
+    const ok=supported.has(c.c);
+    return `<div class="country-opt ${ok?'supported':'unsupported'}" onmousedown="selectCountry('${c.c}','${c.n}',${ok})">
+      <span style="font-size:18px">${flagEmoji(c.c)}</span> ${c.n} <span class="td-mono" style="font-size:10px;color:var(--muted)">${c.c}</span>
+    </div>`;
+  }).join('');
+}
+function openCountryDrop(){ if(document.getElementById('rf-country-search').value) searchCountry(document.getElementById('rf-country-search').value); }
+function closeCountryDrop(){ document.getElementById('country-dropdown').style.display='none'; }
+
+function selectCountry(code,name,supported){
+  selectedCountry={code,name,supported};
+  document.getElementById('rf-country-search').value=`${flagEmoji(code)} ${name} (${code})`;
+  document.getElementById('rf-country-code').value=code;
+  document.getElementById('country-dropdown').style.display='none';
+
+  const unsupBanner=document.getElementById('unsupported-banner');
+  const bankSection=document.getElementById('bank-fields-section');
+  const note=document.getElementById('recip-note');
+  const addBtn=document.getElementById('btn-recip');
+
+  if(!supported){
+    unsupBanner.style.display='block';
+    bankSection.style.display='none';
+    note.style.display='none';
+    addBtn.disabled=true;
+    document.getElementById('unsupported-body').innerHTML=
+      `<strong>${name} (${code})</strong> is not supported by Stripe Connect. Recipients must have a bank account in a Stripe-supported country.<br>
+       <div class="unsupported-banner-alts">
+         <span class="alt-chip">💡 Wise Business API</span>
+         <span class="alt-chip">💡 Payoneer</span>
+         <span class="alt-chip">💡 View Coverage Map</span>
+       </div>`;
+  } else {
+    unsupBanner.style.display='none';
+    bankSection.style.display='block';
+    addBtn.disabled=false;
+    renderDynamicBankFields(code);
+    renderCurrencySelect(code);
+    note.style.display='block';
+    note.innerHTML=S.mode==='live'
+      ? `🔒 <strong>Live mode:</strong> A Stripe Express account is created. Recipient gets an onboarding email to link their ${name} bank.`
+      : `🟡 <strong>Test mode:</strong> Recipient stored locally. Live mode creates a real Stripe Express account.`;
+  }
+}
+
+function renderDynamicBankFields(code){
+  const fmt=S.supported.bankFormats?.[code]||S.supported.bankFormats?._default||{fields:['account_number'],label:'Account Number'};
+  const hint=document.getElementById('bank-fields-hint');
+  hint.style.display='block';
+  hint.innerHTML=`ℹ️ <strong>${code}</strong> requires: <strong>${fmt.label}</strong>`;
+
+  const container=document.getElementById('rf-dynamic-fields');
+  container.innerHTML=fmt.fields.map(field=>{
+    const labels={
+      routing_number:'Routing Number',account_number:'Account Number',sort_code:'Sort Code',
+      bsb_number:'BSB Number',ifsc:'IFSC Code',iban:'IBAN',
+      bank_code:'Bank Code',branch_code:'Branch Code',
+      transit_number:'Transit Number',institution_number:'Institution Number',
+    };
+    const placeholders={
+      routing_number:'9-digit routing number',account_number:'Bank account number',
+      sort_code:'00-00-00',bsb_number:'000-000',ifsc:'SBIN0001234',
+      iban:`${code}00 0000 0000 0000 0000`,bank_code:'0001',branch_code:'001',
+      transit_number:'00000',institution_number:'000',
+    };
+    const isMono=['routing_number','account_number','sort_code','bsb_number','ifsc','iban','bank_code','branch_code'].includes(field);
+    return `<div class="fg"><label class="fl">${labels[field]||field} *</label>
+      <input id="rf-${field}" class="fi${isMono?' mono':''}" placeholder="${placeholders[field]||''}"/>
+    </div>`;
+  }).join('');
+}
+
+function renderCurrencySelect(code){
+  const sel=document.getElementById('rf-cur');
+  const curs=S.supported.currencies?.[code]||['usd'];
+  sel.innerHTML=curs.map(c=>`<option value="${c}">${c.toUpperCase()} — ${CURRENCY_NAMES[c]||c}</option>`).join('');
+}
+
+// ── Modals ────────────────────────────────────────────────────
+const om=id=>document.getElementById(id).style.display='flex';
+const cm=id=>document.getElementById(id).style.display='none';
+const oc=(e,id)=>{ if(e.target===document.getElementById(id)) cm(id); };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') ['m-send','m-recip','m-detail','m-invoice','m-emailtest'].forEach(cm); });
+const showErr=(id,msg)=>{ const el=document.getElementById(id); el.textContent=msg; el.style.display='block'; };
+const clearErr=id=>document.getElementById(id).style.display='none';
+
+function openSendModal(){
+  clearErr('send-err');
+  document.getElementById('sf-amount').value='';
+  document.getElementById('sf-desc').value='';
+  document.getElementById('sf-preview').style.display='none';
+  populateRecipSel();
+  om('m-send');
+}
+function quickSend(id){
+  openSendModal();
+  document.getElementById('sf-recip').value=id;
+  updateRecipPreview(id);
+}
+function updateRecipPreview(id){
+  const r=S.recipients.find(x=>x.id===id);
+  const prev=document.getElementById('sf-preview');
+  if(!r){ prev.style.display='none'; return; }
+  // Update currency options for this recipient
+  const sel=document.getElementById('sf-cur');
+  const curs=S.supported.currencies?.[r.country]||[r.currency||'usd'];
+  sel.innerHTML=curs.map(c=>`<option value="${c}" ${c===r.currency?'selected':''}>${c.toUpperCase()} — ${CURRENCY_NAMES[c]||c}</option>`).join('');
+  prev.style.display='block';
+  prev.innerHTML=`<div class="rcell">${avatar(r.name)}<div>
+    <div style="font-weight:600">${r.name} ${typeChip(r.type)}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px">${flagEmoji(r.country)} ${r.country} · ${r.bank_name||'—'} · ···${r.last4}</div>
+  </div></div>`;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('sf-recip').addEventListener('change',function(){ updateRecipPreview(this.value); });
+});
+
+function openAddRecipientModal(){
+  clearErr('recip-err');
+  ['rf-name','rf-email','rf-bank','rf-holder','rf-swift','rf-country-search'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('rf-country-code').value='';
+  document.getElementById('unsupported-banner').style.display='none';
+  document.getElementById('bank-fields-section').style.display='none';
+  document.getElementById('recip-note').style.display='none';
+  document.getElementById('btn-recip').disabled=true;
+  selectedCountry=null;
+  om('m-recip');
+}
+
+// ── Submit Send ───────────────────────────────────────────────
+async function submitSend(){
+  clearErr('send-err');
+  const recipient_id=document.getElementById('sf-recip').value;
+  const amount=parseFloat(document.getElementById('sf-amount').value);
+  const currency=document.getElementById('sf-cur').value;
+  const description=document.getElementById('sf-desc').value;
+  if(!recipient_id) return showErr('send-err','Please select a recipient');
+  if(!amount||amount<0.5) return showErr('send-err','Enter a valid amount');
+  const btn=document.getElementById('btn-send');
+  btn.innerHTML='<span class="spin"></span> Sending…'; btn.disabled=true;
+  try{
+    const t=await api('/transfers','POST',{recipient_id,amount,currency,description});
+    const r=S.recipients.find(x=>x.id===recipient_id);
+    if(r){ t.recipient_name=r.name; t.recipient_email=r.email; t.bank_name=r.bank_name; t.last4=r.last4; t.country=r.country; }
+    S.transfers.unshift(t);
+    const ri=S.recipients.findIndex(x=>x.id===recipient_id);
+    if(ri!==-1) S.recipients[ri].total_paid=(S.recipients[ri].total_paid||0)+Math.round(amount*100);
+    cm('m-send'); renderTransfers(); renderRecipients(); renderStats();
+    document.getElementById('nav-count').textContent=S.transfers.length;
+    toast(`Sent ${fmt(Math.round(amount*100),currency)} to ${r?.name||'recipient'}!`,'ok');
+  }catch(e){ showErr('send-err',e.message); }
+  finally{ btn.innerHTML='Send Money →'; btn.disabled=false; }
+}
+
+// ── Submit Recipient ──────────────────────────────────────────
+async function submitRecipient(){
+  clearErr('recip-err');
+  const name   =document.getElementById('rf-name').value.trim();
+  const email  =document.getElementById('rf-email').value.trim();
+  const country=document.getElementById('rf-country-code').value;
+  const bank   =document.getElementById('rf-bank').value.trim();
+  const holder =document.getElementById('rf-holder').value.trim();
+  const swift  =document.getElementById('rf-swift').value.trim().toUpperCase();
+  const cur    =document.getElementById('rf-cur').value;
+  const type   =document.getElementById('rf-type').value;
+
+  if(!name)    return showErr('recip-err','Full name is required');
+  if(!email)   return showErr('recip-err','Email is required');
+  if(!country) return showErr('recip-err','Country is required');
+  if(!holder)  return showErr('recip-err','Account holder name is required');
+
+  // Gather dynamic bank fields
+  const fmt_=S.supported.bankFormats?.[country]||S.supported.bankFormats?._default||{fields:['account_number']};
+  const bankData={};
+  for(const field of fmt_.fields){
+    const val=(document.getElementById(`rf-${field}`)?.value||'').trim();
+    if(!val) return showErr('recip-err',`${field.replace(/_/g,' ')} is required`);
+    bankData[field]=val;
+  }
+
+  const btn=document.getElementById('btn-recip');
+  btn.innerHTML='<span class="spin"></span> Saving…'; btn.disabled=true;
+  try{
+    const payload={name,email,country,bank_name:bank,holder,swift,currency:cur,type,...bankData};
+    const r=await api('/recipients','POST',payload);
+    S.recipients.push(r);
+    cm('m-recip'); renderRecipients(); populateRecipSel();
+    toast(`Recipient "${name}" added!`,'ok');
+    if(r.onboarding_url){ toast('Opening Stripe onboarding for recipient…','info'); setTimeout(()=>window.open(r.onboarding_url,'_blank'),1200); }
+  }catch(e){
+    if(e.message.includes('not supported')||e.message.includes('unsupported_country')){
+      document.getElementById('unsupported-banner').style.display='block';
+    }
+    showErr('recip-err',e.message);
+  }
+  finally{ btn.innerHTML='Add Recipient →'; btn.disabled=false; }
+}
+
+// ── Delete Recipient ──────────────────────────────────────────
+async function deleteRecipient(id){
+  if(!confirm('Remove this recipient?')) return;
+  try{
+    await api(`/recipients/${id}`,'DELETE');
+    S.recipients=S.recipients.filter(r=>r.id!==id);
+    renderRecipients(); populateRecipSel(); toast('Recipient removed','info');
+  }catch(e){ toast(e.message,'err'); }
+}
+
+// ── Transfer Detail ───────────────────────────────────────────
+function openDetail(id){
+  const t=S.transfers.find(x=>x.id===id); if(!t) return;
+  const r=S.recipients.find(x=>x.id===t.destination);
+  const name=t.recipient_name||r?.name||'—';
+  const country=t.country||r?.country||'';
+  const steps=['Initiated','Processing','In Transit','Deposited'];
+  const sm={paid:[1,1,1,1],in_transit:[1,1,2,0],pending:[1,2,0,0],failed:[1,0,0,0]};
+  const map=sm[t.status||'paid']||sm.paid;
+  const tracker=steps.map((l,i)=>{
+    const cls=map[i]===1?'done':map[i]===2?'active':'';
+    return `<div class="tstep ${cls}"><div class="tdot">${map[i]===1?'✓':i+1}</div><div class="tlabel">${l}</div></div>`;
+  }).join('');
+  document.getElementById('detail-content').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span class="td-mono" style="font-size:12px;color:var(--accent)">${t.id}</span>${badge(t.status||'paid')}
+    </div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${t.description||'—'}</div>
+    <div class="tracker">${tracker}</div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-item-lbl">Recipient</div><div class="detail-item-val">${name}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Amount</div><div class="detail-item-val td-mono" style="${t.status==='failed'?'color:var(--red)':''}">${fmt(t.amount,t.currency)}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Country</div><div class="detail-item-val">${flagEmoji(country)} ${country}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Bank ···${t.last4||r?.last4||'—'}</div><div class="detail-item-val">${t.bank_name||r?.bank_name||'—'}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Initiated</div><div class="detail-item-val">${fmtDate(t.created)}</div></div>
+      <div class="detail-item"><div class="detail-item-lbl">Est. Arrival</div><div class="detail-item-val">${fmtDate(t.arrival_date)}</div></div>
+    </div>
+    ${t.status==='failed'?`<div style="margin-top:12px;padding:10px 14px;background:rgba(240,71,71,.07);border:1px solid rgba(240,71,71,.2);border-radius:10px;font-size:12px;color:var(--red)">⚠ Transfer failed. Verify recipient bank details and retry.</div>`:''}
+  `;
+  om('m-detail');
+  // Wire the invoice button to this specific transfer
+  document.getElementById('detail-invoice-btn').onclick = () => { cm('m-detail'); openInvoiceModal(id); };
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function toast(msg,type='ok'){
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.innerHTML=(type==='ok'?'✓':type==='info'?'ℹ':'✕')+' '+msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{ el.classList.add('toast-out'); setTimeout(()=>el.remove(),300); },3500);
+}
+
+// ── Invoice Modal ─────────────────────────────────────────────
+let _invoiceTransferId = null;
+
+function openInvoiceModal(transferId) {
+  _invoiceTransferId = transferId;
+  clearErr('inv-err');
+
+  const t = S.transfers.find(x => x.id === transferId);
+  const r = t ? S.recipients.find(x => x.id === t.destination) : null;
+
+  // Pre-fill summary
+  const summary = document.getElementById('inv-summary');
+  if (t) {
+    summary.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:10px">
+          ${avatar(t.recipient_name || '?')}
+          <div>
+            <div style="font-weight:600;font-size:13px">${t.recipient_name || '—'}</div>
+            <div style="font-size:11px;color:var(--muted)">${t.recipient_email || r?.email || '—'}</div>
+          </div>
+        </div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:800;color:var(--accent)">${fmt(t.amount, t.currency)}</div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono)">${t.id}</div>`;
+  }
+
+  // Pre-fill recipient email
+  document.getElementById('inv-to').value = t?.recipient_email || r?.email || '';
+
+  // Pre-fill currency from transfer
+  const cur = document.getElementById('inv-cur');
+  if (t?.currency) cur.value = t.currency;
+
+  // Auto-generate invoice number
+  const pad = n => String(n).padStart(3, '0');
+  const now = new Date();
+  document.getElementById('inv-number').value =
+    `INV-${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(S.transfers.indexOf(t)+1)}`;
+
+  // Auto-fill sender from env (best effort — user can edit)
+  document.getElementById('inv-sname').value = '';
+  document.getElementById('inv-stax').value  = '';
+  document.getElementById('inv-saddr').value = '';
+  document.getElementById('inv-tax').value   = '0';
+  document.getElementById('inv-notes').value = t?.description || '';
+
+  // Default single line item from the transfer
+  document.getElementById('inv-items').innerHTML = '';
+  addInvoiceItem(t?.description || 'Services Rendered', t ? t.amount : 0, 1);
+
+  updateInvoiceTotal();
+  om('m-invoice');
+}
+
+function addInvoiceItem(desc = '', unitPrice = 0, qty = 1) {
+  const container = document.getElementById('inv-items');
+  const idx = container.children.length;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 60px 110px 30px;gap:8px;margin-bottom:8px;align-items:center';
+  div.innerHTML = `
+    <input class="fi" placeholder="Description" value="${desc}" oninput="updateInvoiceTotal()" style="font-size:13px;padding:9px 12px"/>
+    <input class="fi" type="number" min="1" value="${qty}" oninput="updateInvoiceTotal()" style="font-size:13px;padding:9px 10px;text-align:center" title="Quantity"/>
+    <input class="fi mono" type="number" min="0" step="0.01" value="${(unitPrice/100).toFixed(2)}" oninput="updateInvoiceTotal()" style="font-size:13px;padding:9px 12px" placeholder="0.00" title="Unit price"/>
+    <button onclick="this.parentElement.remove();updateInvoiceTotal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0" title="Remove">✕</button>`;
+  container.appendChild(div);
+}
+
+function getInvoiceItems() {
+  return [...document.getElementById('inv-items').children].map(row => {
+    const inputs = row.querySelectorAll('input');
+    return {
+      description: inputs[0].value || 'Item',
+      quantity:    parseInt(inputs[1].value) || 1,
+      unit_price:  Math.round(parseFloat(inputs[2].value || 0) * 100),
+    };
+  });
+}
+
+function updateInvoiceTotal() {
+  const items   = getInvoiceItems();
+  const cur     = document.getElementById('inv-cur').value;
+  const taxRate = parseFloat(document.getElementById('inv-tax').value) || 0;
+  const sub     = items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const tax     = Math.round(sub * taxRate / 100);
+  const total   = sub + tax;
+  document.getElementById('inv-total-val').textContent = fmt(total, cur);
+}
+
+// Listen for currency / tax changes
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inv-cur')?.addEventListener('change', updateInvoiceTotal);
+  document.getElementById('inv-tax')?.addEventListener('input',  updateInvoiceTotal);
+});
+
+async function submitInvoice() {
+  clearErr('inv-err');
+  const to      = document.getElementById('inv-to').value.trim();
+  const cur     = document.getElementById('inv-cur').value;
+  const number  = document.getElementById('inv-number').value.trim();
+  const sname   = document.getElementById('inv-sname').value.trim();
+  const stax    = document.getElementById('inv-stax').value.trim();
+  const saddr   = document.getElementById('inv-saddr').value.trim();
+  const taxRate = parseFloat(document.getElementById('inv-tax').value) || 0;
+  const notes   = document.getElementById('inv-notes').value.trim();
+  const items   = getInvoiceItems();
+
+  if (!to)           return showErr('inv-err', 'Recipient email is required');
+  if (!items.length) return showErr('inv-err', 'Add at least one line item');
+  if (items.some(i => !i.description)) return showErr('inv-err', 'All items need a description');
+
+  const t = S.transfers.find(x => x.id === _invoiceTransferId);
+  const r = t ? S.recipients.find(x => x.id === t.destination) : null;
+  const total = items.reduce((s,i)=>s+i.quantity*i.unit_price,0);
+
+  const btn = document.getElementById('btn-inv');
+  btn.innerHTML = '<span class="spin"></span> Sending…'; btn.disabled = true;
+
+  try {
+    const result = await api('/invoice', 'POST', {
+      transfer_id:    _invoiceTransferId,
+      to, currency:   cur,
+      invoice_number: number,
+      sender: { name: sname || 'PayGlobal Platform', tax_id: stax, address: saddr },
+      recipient: { name: t?.recipient_name || r?.name, email: to, address: r?.country },
+      items, tax_rate: taxRate, notes, total,
+    });
+
+    cm('m-invoice');
+    if (result.previewUrl) {
+      toast(`Invoice sent! Preview: <a href="${result.previewUrl}" target="_blank" style="color:var(--accent)">Open email ↗</a>`, 'ok');
+    } else {
+      toast(`Invoice emailed to ${to}`, 'ok');
+    }
+  } catch(e) {
+    showErr('inv-err', e.message);
+  } finally {
+    btn.innerHTML = '📄 Send Invoice Email →'; btn.disabled = false;
+  }
+}
+
+
+// ── Email Test Panel ──────────────────────────────────────────
+async function sendTestEmail(type) {
+  const to = document.getElementById('test-email-to').value.trim();
+  if (!to) { toast('Enter an email address first', 'err'); return; }
+
+  const result = document.getElementById('test-email-result');
+  result.style.display = 'block';
+  result.style.color   = 'var(--muted)';
+  result.innerHTML     = `<span class="spin"></span>  Sending ${type} test email to <strong>${to}</strong>…`;
+
+  try {
+    const res = await api('/email/test', 'POST', { type, to });
+    if (res.success) {
+      result.style.color = 'var(--green)';
+      result.innerHTML = res.previewUrl
+        ? `✅ Sent! <a href="${res.previewUrl}" target="_blank" style="color:var(--accent);font-weight:700">👁 Preview email in browser ↗</a><br/><span style="opacity:.6;font-size:11px">Ethereal preview — no real email sent</span>`
+        : `✅ Email sent to <strong>${to}</strong><br/><span style="opacity:.6;font-size:11px">Message ID: ${res.messageId}</span>`;
+    } else {
+      result.style.color = 'var(--red)';
+      result.innerHTML   = `❌ Failed: ${res.error}`;
+    }
+  } catch(e) {
+    result.style.color = 'var(--red)';
+    result.innerHTML   = `❌ ${e.message}`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
