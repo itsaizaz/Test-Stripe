@@ -211,13 +211,15 @@ app.get('/api/transfers', async (req, res) => {
 app.post('/api/transfers', async (req, res) => {
   const { recipient_id, amount, currency = 'usd', description } = req.body;
   if (!recipient_id)                    return res.status(400).json({ error:'recipient_id is required' });
-  if (!amount || parseFloat(amount) < 0.01) return res.status(400).json({ error:'Invalid amount' });
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount < 0.01)
+    return res.status(400).json({ error:'Invalid amount' });
 
   const recipients = await dbGet('recipients');
   const r = recipients.find(x => x.id === recipient_id);
   if (!r) return res.status(404).json({ error:'Recipient not found' });
 
-  const amountCents = Math.round(parseFloat(amount) * 100);
+  const amountCents = Math.round(numericAmount * 100);
 
   const t = {
     id:             'tr_' + Date.now(),
