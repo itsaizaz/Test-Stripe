@@ -2,7 +2,7 @@
   "name": "payglobal-vercel",
   "version": "1.0.0",
   "description": "PayGlobal Stripe Payout Dashboard",
-  "engines": { "node": "18.x" },
+  "engines": { "node": "24.x" },
   "scripts": {
     "start": "node api/index.js",
     "dev": "vercel dev"

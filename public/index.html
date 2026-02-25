@@ -151,9 +151,6 @@ tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
 .country-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);z-index:50;max-height:220px;overflow-y:auto;margin-top:4px;box-shadow:var(--shadow);display:none}
 .country-opt{padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;transition:background .1s}
 .country-opt:hover,.country-opt.focused{background:var(--s3)}
-.country-opt.unsupported{opacity:.45;cursor:not-allowed}
-.country-opt.unsupported::after{content:'Not supported';margin-left:auto;font-size:10px;color:var(--red);font-weight:600}
-.country-opt.supported::after{content:'✓';margin-left:auto;font-size:11px;color:var(--green);font-weight:700}
 
 /* Unsupported country banner */
 .unsupported-banner{background:rgba(240,71,71,.07);border:1px solid rgba(240,71,71,.2);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:none}
@@ -340,7 +337,7 @@ tbody td{padding:14px 18px;font-size:13px;vertical-align:middle}
       <div class="fnote" style="margin-bottom:20px">
         ✅ Recipients must have a bank account in one of these <strong id="total-countries">—</strong> countries.<br>
         ❌ Countries not listed <strong>cannot receive Stripe payouts</strong> — the UI will show a clear error if you try.<br>
-        <span style="opacity:.6;font-size:11px">UAE, Saudi Arabia, most of Africa, Pakistan, Bangladesh etc. are not supported. Use Wise or Payoneer for those.</span>
+        <span style="opacity:.6;font-size:11px">All countries are accepted — you store bank details and handle transfers via your bank or Wise.</span>
       </div>
       <div class="coverage-grid" id="coverage-grid"></div>
     </div>
@@ -824,11 +821,11 @@ function showView(name,btn){
 let selectedCountry=null;
 function searchCountry(q){
   const drop=document.getElementById('country-dropdown');
+  if(!q){ drop.style.display='none'; return; }
   const filtered=ALL_COUNTRIES.filter(c=>c.n.toLowerCase().includes(q.toLowerCase())||c.c.toLowerCase()===q.toLowerCase()).slice(0,12);
   drop.style.display=filtered.length?'block':'none';
   drop.innerHTML=filtered.map(c=>{
-    const ok=supported.has(c.c);
-    return `<div class="country-opt ${ok?'supported':'unsupported'}" onmousedown="selectCountry('${c.c}','${c.n}',${ok})">
+    return `<div class="country-opt" onmousedown="selectCountry('${c.c}','${c.n}')">
       <span style="font-size:18px">${flagEmoji(c.c)}</span> ${c.n} <span class="td-mono" style="font-size:10px;color:var(--muted)">${c.c}</span>
     </div>`;
   }).join('');
@@ -836,8 +833,8 @@ function searchCountry(q){
 function openCountryDrop(){ if(document.getElementById('rf-country-search').value) searchCountry(document.getElementById('rf-country-search').value); }
 function closeCountryDrop(){ document.getElementById('country-dropdown').style.display='none'; }
 
-function selectCountry(code,name,supported){
-  selectedCountry={code,name,supported};
+function selectCountry(code, name){
+  selectedCountry={code, name, supported:true};
   document.getElementById('rf-country-search').value=`${flagEmoji(code)} ${name} (${code})`;
   document.getElementById('rf-country-code').value=code;
   document.getElementById('country-dropdown').style.display='none';
